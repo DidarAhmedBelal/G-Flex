@@ -1,5 +1,4 @@
 
-# subscription/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -13,8 +12,11 @@ from django.http import JsonResponse
 import json
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAdminUser
-from users.serializers import UserSerializer  # Use your existing UserSerializer
+from users.serializers import UserSerializer  
 from django.contrib.auth import get_user_model
+
+
+
 
 User = get_user_model()
 
