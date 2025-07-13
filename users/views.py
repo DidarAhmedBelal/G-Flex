@@ -3,10 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView, GenericAPIView
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
@@ -14,6 +11,7 @@ import random
 from datetime import timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
+from rest_framework.generics import ListAPIView
 
 from .serializers import (
     UserSerializer,
@@ -34,26 +32,41 @@ User = get_user_model()
 
 
 class UserList(viewsets.ModelViewSet):
-    """
-    API endpoint that allows users to be viewed or edited by administrators.
-    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
 
 
+class NewUsersView(ListAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser] 
+
+    def get_queryset(self):
+        one_week_ago = timezone.now() - timedelta(days=7)
+        return User.objects.filter(date_joined__gte=one_week_ago).order_by('-date_joined')
+
+class ActiveUsersView(ListAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        return User.objects.filter(is_verified=True).order_by('-last_login')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'count': queryset.count(),
+            'results': serializer.data
+        })
+
+
 class SignupView(CreateAPIView):
-    """
-    API endpoint for user registration. Allows anyone to create a new user account.
-    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        """
-        Overrides the default create method to return a custom success message.
-        """
         response = super().create(request, *args, **kwargs)
         return Response({
             'message': 'User created successfully',
@@ -62,16 +75,10 @@ class SignupView(CreateAPIView):
 
 
 class MyProfileView(RetrieveUpdateAPIView):
-    """
-    API endpoint for retrieving and updating the authenticated user's profile.
-    """
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        """
-        Returns the User instance associated with the current request.
-        """
         return self.request.user
 
 class LoginView(APIView):

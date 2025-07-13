@@ -25,7 +25,10 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'djoser',
     'corsheaders',
-    'users',  
+    'users',
+    'dashboard',
+    'subscription',
+    'donation',  
 
 ]
 
@@ -42,8 +45,12 @@ DJOSER = {
     }
 }
 
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY')
+# print(f"33Stripe Secret Key: {STRIPE_SECRET_KEY}")  
 
 
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY')
+# print(f"33Stripe Secret Key: {STRIPE_PUBLISHABLE_KEY}")  
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
