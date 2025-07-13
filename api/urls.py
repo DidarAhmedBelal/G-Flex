@@ -3,7 +3,7 @@ from django.urls import path
 from users.views import UserList
 from users.views import (
     LoginView,  SignupView, MyProfileView,
-    ChangePasswordView, VerifyOTPView, SendOTPView
+    ChangePasswordView,  SetNewPasswordView, SendVerificationOTPView, VerifyAccountOTPView, SendPasswordResetOTPView, VerifyPasswordResetOTPView
     )
 
 router = DefaultRouter()
@@ -14,8 +14,12 @@ urlpatterns = [
     path('signup/', SignupView.as_view(), name='signup'),
     path('profile/', MyProfileView.as_view(), name='my-profile'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
-    path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
-    path('send-otp/', SendOTPView.as_view(), name='send-otp'),
+    path('set-new-password/', SetNewPasswordView.as_view(), name='set-new-password'),
+    path("send-verification-otp/", SendVerificationOTPView.as_view()),
+    path("verify-account/", VerifyAccountOTPView.as_view()),
+    path("send-reset-otp/", SendPasswordResetOTPView.as_view()),
+    path("verify-reset-otp/", VerifyPasswordResetOTPView.as_view()),
+
 ]
 
 urlpatterns += router.urls

@@ -4,7 +4,7 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
+AUTH_USER_MODEL = 'users.User'
 STATIC_URL = '/static/'
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-bgt5*%=^sk$6l$3lc4*z3$@&iwm2w%32^n2^4071@4=wcjtio=')
@@ -29,7 +29,21 @@ INSTALLED_APPS = [
 
 ]
 
-AUTH_USER_MODEL = 'users.User'
+DJOSER = {
+    'PASSWORD_RESET_CONFIRM_URL': 'reset-password/{uid}/{token}',
+    'SERIALIZERS': {
+        'user_create': 'users.serializers.UserSerializer',
+        'user': 'users.serializers.UserSerializer',
+        'current_user': 'users.serializers.UserSerializer',
+    },
+    'EMAIL': {
+        'password_reset': 'djoser.email.PasswordResetEmail',
+        'password_changed_confirmation': 'djoser.email.PasswordChangedConfirmationEmail',
+    }
+}
+
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
