@@ -13,6 +13,8 @@ from donation.models import Donation
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
