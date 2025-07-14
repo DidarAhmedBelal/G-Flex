@@ -1,4 +1,3 @@
-# subscription/models.py
 from django.db import models
 from django.conf import settings
 from datetime import timedelta
@@ -18,7 +17,11 @@ class SubscriptionPlan(models.Model):
 
 
 class UserSubscription(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscriptions')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='subscriptions'
+    )
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT)
     start_date = models.DateTimeField(auto_now_add=True)
     end_date = models.DateTimeField(blank=True, null=True)
@@ -41,8 +44,3 @@ class UserSubscription(models.Model):
     @property
     def is_current_active(self):
         return self.is_active and self.end_date > timezone.now()
-
-
-
-
-

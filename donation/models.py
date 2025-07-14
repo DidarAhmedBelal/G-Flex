@@ -1,8 +1,14 @@
 from django.db import models
-from django.conf import settings 
+from django.conf import settings
 
 class Donation(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='donations'
+    )
     donor_name = models.CharField(max_length=255, blank=True, null=True)
     donor_email = models.EmailField(blank=True, null=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -10,8 +16,9 @@ class Donation(models.Model):
     message = models.TextField(blank=True)
     donated_at = models.DateTimeField(auto_now_add=True)
     transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
-    payment_status = models.CharField(max_length=50, default='pending') 
+    payment_status = models.CharField(max_length=50, default='pending')
     rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="1-5 star rating")
+    is_request = models.BooleanField(default=False, help_text="True if created by admin as a donation request")
 
     class Meta:
         ordering = ['-donated_at']

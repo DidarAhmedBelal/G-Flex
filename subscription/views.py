@@ -1,25 +1,18 @@
-
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.conf import settings
-from .models import SubscriptionPlan, UserSubscription
-from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer
-import stripe
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-import json
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAdminUser
-from users.serializers import UserSerializer  
 from django.contrib.auth import get_user_model
-
-
-
+from .models import SubscriptionPlan, UserSubscription
+from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer
+from users.serializers import UserSerializer 
+import stripe
 
 User = get_user_model()
-
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
@@ -30,6 +23,7 @@ class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def create_checkout_session(self, request, pk=None):
         plan = self.get_object()
+
         try:
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -45,11 +39,10 @@ class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
                 success_url='http://localhost:8000/payment-success/',
                 cancel_url='http://localhost:8000/payment-cancel/',
                 metadata={
-                    'plan_id': plan.id,
-                    'user_id': request.user.id,
+                    'plan_id': str(plan.id),
+                    'user_id': str(request.user.id),
                 }
             )
-
             return Response({'checkout_url': session.url}, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -61,11 +54,15 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return UserSubscription.objects.filter(user=self.request.user)
+        if getattr(self, 'swagger_fake_view', False):
+            return UserSubscription.objects.none()
+
+        if self.request.user.is_authenticated:
+            return UserSubscription.objects.filter(user=self.request.user)
+        return UserSubscription.objects.none()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
 
 
 class SubscribedUsersView(APIView):
@@ -80,33 +77,33 @@ class SubscribedUsersView(APIView):
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
 
-
-
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
-    sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
     try:
         event = stripe.Webhook.construct_event(
             payload, sig_header, endpoint_secret
         )
-    except ValueError as e:
+    except ValueError:
         return JsonResponse({'error': 'Invalid payload'}, status=400)
-    except stripe.error.SignatureVerificationError as e:
+    except stripe.error.SignatureVerificationError:
         return JsonResponse({'error': 'Invalid signature'}, status=400)
 
-    # Handle successful payment
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        plan_id = session['metadata']['plan_id']
-        user_id = session['metadata']['user_id']
-        transaction_id = session['id']
+        metadata = session.get('metadata', {})
+        transaction_id = session.get('id')
+        user_id = metadata.get('user_id')
+        plan_id = metadata.get('plan_id')
 
         try:
-            user = settings.AUTH_USER_MODEL.objects.get(id=user_id)
+            user = User.objects.get(id=user_id)
             plan = SubscriptionPlan.objects.get(id=plan_id)
+
+            UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
 
             UserSubscription.objects.create(
                 user=user,
@@ -115,6 +112,7 @@ def stripe_webhook(request):
                 transaction_id=transaction_id,
                 is_active=True
             )
+
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
