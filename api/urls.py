@@ -20,6 +20,16 @@ router.register('subscriptions', UserSubscriptionViewSet, basename='subscription
 router.register('donations', DonationViewSet, basename='donation')
 router.register('conversations', ConversationViewSet, basename='conversation')
 # POST /api/conversations/1/send_message/
+
+
+# POST message:
+# POST /api/conversations/<conversation_id>/send_message/
+# → Sends user message, stores reply.
+
+# GET chat history:
+# GET /api/conversations/<conversation_id>/messages/
+# → Returns all messages (user + AI) for that conversation.
+
 urlpatterns = [
     # User-related endpoints
     path('users/active/', ActiveUsersView.as_view(), name='active-users'),

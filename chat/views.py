@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Conversation, Message
-from .serializers import ConversationSerializer, SendMessageSerializer  
+from .serializers import ConversationSerializer, SendMessageSerializer, MessageSerializer
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -12,11 +12,14 @@ class ConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # Avoid errors during Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Conversation.objects.none()
+
         user = self.request.user
         if user.is_authenticated:
             return self.queryset.filter(user=user)
-        return self.queryset.none()  
-
+        return self.queryset.none()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -25,42 +28,30 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def send_message(self, request, pk=None):
         conv = self.get_object()
 
-      
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user_msg = serializer.validated_data['content'].strip()
 
-      
+        # If no title, set it from the first message
         if not conv.title:
             conv.title = f"User: {user_msg[:50]}"
             conv.save()
 
+        # Save user message
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
+        # Generate dummy AI reply (replace with OpenAI call if needed)
         dummy_reply = "Hi! I'm a dummy AI. You said: " + user_msg
-
-        # openai.api_key = settings.OPENAI_API_KEY
-
-        # # prepare chat history
-        # history = [
-        #     {"role": msg.role, "content": msg.content}
-        #     for msg in conv.messages.order_by("created_at")
-        # ]
-        # history.append({"role": "user", "content": user_msg})
-
-        # try:
-        #     response = openai.ChatCompletion.create(
-        #         model="gpt-3.5-turbo",
-        #         messages=history,
-        #     )
-        #     ai_reply = response.choices[0].message["content"]
-        # except Exception as e:
-        #     return Response({"error": f"OpenAI Error: {str(e)}"}, status=500)
-
-
         Message.objects.create(conversation=conv, role='ai', content=dummy_reply)
 
         return Response({
             "User": user_msg,
             "AI": dummy_reply
         }, status=200)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def messages(self, request, pk=None):
+        conv = self.get_object()
+        messages = conv.messages.order_by("created_at")
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data)
