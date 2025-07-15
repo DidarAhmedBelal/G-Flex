@@ -28,7 +28,9 @@ INSTALLED_APPS = [
     'users',
     'dashboard',
     'subscription',
-    'donation',  
+    'donation',
+    'chat', 
+    'terms', 
 
 ]
 

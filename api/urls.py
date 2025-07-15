@@ -10,14 +10,16 @@ from dashboard.views import DashboardStatsView, MonthlyUserTrendView
 from subscription.views import (
     SubscriptionPlanViewSet, UserSubscriptionViewSet, SubscribedUsersView, stripe_webhook as subscription_stripe_webhook
 )
-
+from terms.views import ( AdminTermsListCreateView, AdminTermsDetailView, TermsByTypeListView)   
 from donation.views import ( CreateDonationCheckoutSessionView, StripeWebhookView, DonationViewSet)
+from chat.views import ConversationViewSet
 router = DefaultRouter()
 router.register('users', UserList, basename='user')
 router.register('plans', SubscriptionPlanViewSet, basename='plan')
 router.register('subscriptions', UserSubscriptionViewSet, basename='subscription')
 router.register('donations', DonationViewSet, basename='donation')
-
+router.register('conversations', ConversationViewSet, basename='conversation')
+# POST /api/conversations/1/send_message/
 urlpatterns = [
     # User-related endpoints
     path('users/active/', ActiveUsersView.as_view(), name='active-users'),
@@ -44,6 +46,11 @@ urlpatterns = [
 
     path('donation/create-checkout-session/', CreateDonationCheckoutSessionView.as_view(), name='create-donation-session'),
     path('stripe/webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
+    path('terms/', AdminTermsListCreateView.as_view(), name='admin-terms-list-create'),
+    path('terms/<int:pk>/', AdminTermsDetailView.as_view(), name='admin-terms-detail'),
+    
+    # Public view (read-only)
+    path('terms/<str:type>/', TermsByTypeListView.as_view(), name='terms-by-type'),
 
     # Include all router-registered URLs
     path('', include(router.urls)),
