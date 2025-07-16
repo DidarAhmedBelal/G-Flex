@@ -41,7 +41,15 @@ class ConversationViewSet(viewsets.ModelViewSet):
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
         # Generate dummy AI reply (replace with OpenAI call if needed)
-        dummy_reply = "Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: " + user_msg
+        if user_msg == "hello":
+            dummy_reply = "Hello! How can I assist you today?"
+        elif user_msg == "bye":
+            dummy_reply = "Goodbye! Have a great day!"
+        elif user_msg == "help":
+            dummy_reply = "Sure! What do you need help with?"
+        else:
+            dummy_reply = "I'm not sure how to respond to that."
+            
         Message.objects.create(conversation=conv, role='ai', content=dummy_reply)
 
         return Response({
