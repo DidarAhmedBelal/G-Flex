@@ -1,0 +1,153 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h2>Send a message to AI:</h2>
+    <input type="text" id="userInput" />
+    <button onclick="sendMessage()">Send</button>
+
+    <h3>AI Response (Typing...)</h3>
+    <div id="aiResponse" style="font-family: monospace; border: 1px solid #ccc; padding: 10px;"></div>
+
+    <script>
+        let socket;
+        let aiText = "";
+
+        function connectSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            socket = new WebSocket(`${protocol}://${window.location.host}/ws/chat/`);
+
+            socket.onopen = function () {
+                console.log("✅ WebSocket connected!");
+            };
+
+            socket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                aiText += data.ai_char;
+                document.getElementById("aiResponse").innerText = aiText;
+            };
+
+            socket.onclose = function () {
+                console.warn("⚠️ WebSocket closed.");
+            };
+
+            socket.onerror = function (e) {
+                console.error("❌ WebSocket error:", e);
+            };
+        }
+
+        function sendMessage() {
+            const userMsg = document.getElementById("userInput").value;
+            aiText = "";
+            document.getElementById("aiResponse").innerText = "";
+
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                alert("WebSocket not connected. Trying to reconnect...");
+                connectSocket();
+                return;
+            }
+
+            socket.send(JSON.stringify({ message: userMsg }));
+        }
+
+        connectSocket(); // Connect on page load
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat with AI</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    #chat-box {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-bottom: 10px;
+    }
+    #user-input {
+      width: 80%;
+      padding: 10px;
+    }
+    #send-btn {
+      padding: 10px 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Chat with Dummy AI</h2>
+  <div id="chat-box"></div>
+
+  <input type="text" id="user-input" placeholder="Type your message..." />
+  <button id="send-btn">Send</button>
+
+  <script>
+    const chatBox = document.getElementById('chat-box');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    const conversationId = 1; // 🔁 Replace with actual conversation ID
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUyNzE1NzkxLCJpYXQiOjE3NTI2MjkzOTEsImp0aSI6IjU4MTUyNGY3MWUxNzQ0M2I5MzQ0MGQ1YzUzMmQwZjMxIiwidXNlcl9pZCI6MX0.97TS8qGRiCFHMeTos2zKzMnBSq639o-J8ueoNvT3pls"; // 🔁 Replace with actual JWT token
+
+    async function sendMessage() {
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      // Show user message
+      chatBox.innerHTML += `User: ${message}\nBot: `;
+      userInput.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/api/conversations/${conversationId}/send_message/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `JWT ${token}`
+          },
+          body: JSON.stringify({ content: message })
+        });
+
+        const data = await res.json();
+        const botResponse = data.AI;
+
+        let i = 0;
+        function typeWriter() {
+          if (i < botResponse.length) {
+            chatBox.innerHTML += botResponse.charAt(i);
+            i++;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            setTimeout(typeWriter, 30);
+          } else {
+            chatBox.innerHTML += '\n\n';
+          }
+        }
+
+        typeWriter();
+
+      } catch (err) {
+        chatBox.innerHTML += "\nError contacting server.\n\n";
+      }
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    // Optional: enter key support
+    userInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+
+</body>
+</html>

@@ -10,7 +10,7 @@ STATIC_URL = '/static/'
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-bgt5*%=^sk$6l$3lc4*z3$@&iwm2w%32^n2^4071@4=wcjtio=')
 
 DEBUG = True
-
+CORS_ALLOW_ALL_ORIGINS = True
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
@@ -30,9 +30,13 @@ INSTALLED_APPS = [
     'subscription',
     'donation',
     'chat', 
-    'terms', 
+    'terms',
+    'channels', 
 
 ]
+
+ASGI_APPLICATION = 'main.asgi.application'
+
 
 DJOSER = {
     'PASSWORD_RESET_CONFIRM_URL': 'reset-password/{uid}/{token}',
@@ -55,6 +59,7 @@ STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY')
 # print(f"33Stripe Secret Key: {STRIPE_PUBLISHABLE_KEY}")  
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

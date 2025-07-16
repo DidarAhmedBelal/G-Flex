@@ -12,7 +12,7 @@ from subscription.views import (
 )
 from terms.views import ( AdminTermsListCreateView, AdminTermsDetailView, TermsByTypeListView)   
 from donation.views import ( CreateDonationCheckoutSessionView, StripeWebhookView, DonationViewSet)
-from chat.views import ConversationViewSet
+from chat.views import ConversationViewSet, websocket_test_view
 router = DefaultRouter()
 router.register('users', UserList, basename='user')
 router.register('plans', SubscriptionPlanViewSet, basename='plan')
@@ -61,6 +61,7 @@ urlpatterns = [
     
     # Public view (read-only)
     path('terms/<str:type>/', TermsByTypeListView.as_view(), name='terms-by-type'),
+    path("test-socket/", websocket_test_view, name="websocket-test"),
 
     # Include all router-registered URLs
     path('', include(router.urls)),

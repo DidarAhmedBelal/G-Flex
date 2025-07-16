@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, SendMessageSerializer, MessageSerializer
-
+from django.shortcuts import render
 
 class ConversationViewSet(viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
@@ -41,7 +41,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
         # Generate dummy AI reply (replace with OpenAI call if needed)
-        dummy_reply = "Hi! I'm a dummy AI. You said: " + user_msg
+        dummy_reply = "Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: Hi! I'm a dummy AI. You said: " + user_msg
         Message.objects.create(conversation=conv, role='ai', content=dummy_reply)
 
         return Response({
@@ -55,3 +55,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         messages = conv.messages.order_by("created_at")
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
+
+
+def websocket_test_view(request):
+    return render(request, "chat/test_socket.html")

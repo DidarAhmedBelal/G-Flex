@@ -30,17 +30,14 @@ from .serializers import (
 
 User = get_user_model()
 
-
 class UserList(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
 
-
 class NewUsersView(ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser] 
-
     def get_queryset(self):
         one_week_ago = timezone.now() - timedelta(days=7)
         return User.objects.filter(date_joined__gte=one_week_ago).order_by('-date_joined')
@@ -48,10 +45,8 @@ class NewUsersView(ListAPIView):
 class ActiveUsersView(ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
-
     def get_queryset(self):
         return User.objects.filter(is_verified=True).order_by('-last_login')
-
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
@@ -65,25 +60,23 @@ class SignupView(CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
-
     def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
         return Response({
             'message': 'User created successfully',
-            'user': response.data
+            'user': UserSerializer(user).data
         }, status=status.HTTP_201_CREATED)
-
 
 class MyProfileView(RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
-
     def get_object(self):
         return self.request.user
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
-
     @swagger_auto_schema(
         request_body=LoginSerializer,
         responses={
@@ -94,12 +87,9 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
-
         user_data = UserSerializer(user).data  
-
         return Response({
             "message": "Login successful",
             "access": str(refresh.access_token),
@@ -111,7 +101,6 @@ class LoginView(APIView):
 class SendVerificationOTPView(GenericAPIView):
     serializer_class = OTPSerializer
     permission_classes = [AllowAny]
-
     @swagger_auto_schema(
         request_body=OTPSerializer,
         responses={
@@ -125,15 +114,11 @@ class SendVerificationOTPView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
-
         try:
             user = User.objects.get(email=email)
-
             if user.is_verified:
                 return Response({'error': 'User already verified.'}, status=400)
-
             now = timezone.now()
-
             if not user.otp_request_reset_time or now > user.otp_request_reset_time + timedelta(hours=1):
                 user.otp_request_count = 0
                 user.otp_request_reset_time = now
@@ -141,14 +126,11 @@ class SendVerificationOTPView(GenericAPIView):
             if user.otp_request_count >= 5:
                 return Response({'error': 'Too many OTP requests.', 'detail': 'Try again after 1 hour.'},
                                 status=status.HTTP_429_TOO_MANY_REQUESTS)
-
             otp = str(random.randint(100000, 999999))
             user.otp = otp
             user.otp_created_at = now
             user.otp_request_count += 1
-
             user.save(update_fields=['otp', 'otp_created_at', 'otp_request_count', 'otp_request_reset_time'])
-
             send_mail(
                 subject='Verify Your Account',
                 message=f'Your OTP to verify your account is {otp}',
@@ -156,9 +138,7 @@ class SendVerificationOTPView(GenericAPIView):
                 recipient_list=[email],
                 fail_silently=False
             )
-
             return Response({'message': 'Verification OTP sent successfully', 'email': email}, status=200)
-
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
 
@@ -177,24 +157,18 @@ class VerifyAccountOTPView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         email = serializer.validated_data['email']
         otp = serializer.validated_data['otp']
-
         try:
             user = User.objects.get(email=email, otp=otp)
 
             if not user.otp_created_at or timezone.now() > user.otp_created_at + timedelta(minutes=1):
                 return Response({'error': 'OTP has expired'}, status=400)
-
             user.otp = ''
             user.otp_created_at = None
             user.is_verified = True
-
             user.save(update_fields=['otp', 'otp_created_at', 'is_verified'])
-
             return Response({'message': 'Account verified successfully', 'email': email}, status=200)
-
         except User.DoesNotExist:
             return Response({'error': 'Invalid OTP or email'}, status=400)
 
@@ -204,7 +178,6 @@ class VerifyAccountOTPView(GenericAPIView):
 class SendPasswordResetOTPView(GenericAPIView):
     serializer_class = OTPSerializer
     permission_classes = [AllowAny]
-
     @swagger_auto_schema(
         request_body=OTPSerializer,
         responses={
@@ -219,31 +192,23 @@ class SendPasswordResetOTPView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
-
         try:
             user = User.objects.get(email=email)
-
             if not user.is_verified:
                 return Response({'error': 'User is not verified. Cannot send reset OTP.'}, status=400)
-
             now = timezone.now()
-
             if not user.otp_request_reset_time or now > user.otp_request_reset_time + timedelta(hours=1):
                 user.otp_request_count = 0
                 user.otp_request_reset_time = now
-
             if user.otp_request_count >= 5:
                 return Response({'error': 'Too many OTP requests.', 'detail': 'Try again after 1 hour.'},
                                 status=status.HTTP_429_TOO_MANY_REQUESTS)
-
             otp = str(random.randint(100000, 999999))
             user.otp = otp
             user.otp_created_at = now
             user.otp_request_count += 1
             user.reset_password = False  
-
             user.save(update_fields=['otp', 'otp_created_at', 'otp_request_count', 'otp_request_reset_time', 'reset_password'])
-
             send_mail(
                 subject='Reset Your Password',
                 message=f'Your OTP to reset your password is {otp}',
@@ -251,17 +216,13 @@ class SendPasswordResetOTPView(GenericAPIView):
                 recipient_list=[email],
                 fail_silently=False
             )
-
             return Response({'message': 'Password reset OTP sent successfully', 'email': email}, status=200)
-
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
-
 
 class VerifyPasswordResetOTPView(GenericAPIView):
     serializer_class = VerifyOTPSerializer
     permission_classes = [AllowAny]
-
     @swagger_auto_schema(
         request_body=VerifyOTPSerializer,
         responses={
@@ -272,37 +233,28 @@ class VerifyPasswordResetOTPView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         email = serializer.validated_data['email']
         otp = serializer.validated_data['otp']
-
         try:
             user = User.objects.get(email=email, otp=otp)
-
             if not user.is_verified:
                 return Response({'error': 'User is not verified'}, status=400)
 
             if not user.otp_created_at or timezone.now() > user.otp_created_at + timedelta(minutes=1):
                 return Response({'error': 'OTP has expired'}, status=400)
-
             user.otp = ''
             user.otp_created_at = None
             user.reset_password = True
-
             user.save(update_fields=['otp', 'otp_created_at', 'reset_password'])
-
             return Response({'message': 'OTP verified. You can now reset your password.', 'email': email}, status=200)
-
         except User.DoesNotExist:
             return Response({'error': 'Invalid OTP or email'}, status=400)
 
 
 
 class ChangePasswordView(GenericAPIView):
-   
     serializer_class = ChangePasswordSerializer
     permission_classes = [IsAuthenticated]
-
     @swagger_auto_schema(
         request_body=ChangePasswordSerializer,
         responses={
@@ -313,22 +265,18 @@ class ChangePasswordView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request}) 
         serializer.is_valid(raise_exception=True)
-
         old_password = serializer.validated_data['old_password']
         new_password = serializer.validated_data['new_password']
         user = request.user
 
-   
         if not user.check_password(old_password):
             return Response(
                 {'error': 'Old password is incorrect', 'detail': 'The old password you provided does not match your current password.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
  
         user.set_password(new_password)
         user.save(update_fields=["password"])
-
         full_name = f"{user.first_name} {user.last_name}".strip()
         return Response(
             {'message': 'Password changed successfully', 'full_name': full_name},
@@ -339,7 +287,6 @@ class ChangePasswordView(GenericAPIView):
 class SetNewPasswordView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = SetNewPasswordSerializer
-
     @swagger_auto_schema(
         request_body=SetNewPasswordSerializer,
         responses={
@@ -352,10 +299,8 @@ class SetNewPasswordView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         email = serializer.validated_data['email']
         new_password = serializer.validated_data['new_password']
-
         try:
             user = User.objects.get(email=email)
 
@@ -364,16 +309,13 @@ class SetNewPasswordView(GenericAPIView):
                     {'error': 'Forbidden', 'detail': 'OTP verification required before resetting password.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-
             user.set_password(new_password)
             user.reset_password = False
             user.save(update_fields=['password', 'reset_password'])
-
             return Response(
                 {'message': 'Password reset successful.'},
                 status=status.HTTP_200_OK
             )
-
         except User.DoesNotExist:
             return Response(
                 {'error': 'User not found', 'detail': 'No user registered with this email address.'},

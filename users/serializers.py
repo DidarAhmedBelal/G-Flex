@@ -4,12 +4,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from users.models import User
 
-
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=True)
     profile_picture = serializers.ImageField(required=False, allow_null=True)
-    age = serializers.ReadOnlyField() 
-
+    age = serializers.ReadOnlyField()
     class Meta:
         model = User
         fields = [
@@ -21,8 +19,8 @@ class UserSerializer(serializers.ModelSerializer):
             'password',
             'is_verified',
             'profile_picture',
-            'date_of_birth',   
-            'age',            
+            'date_of_birth',
+            'age',
         ]
         extra_kwargs = {
             'email': {'required': True},
@@ -31,6 +29,11 @@ class UserSerializer(serializers.ModelSerializer):
             'date_of_birth': {'required': False, 'allow_null': True},
         }
         ref_name = 'CustomUserSerializer'
+
+    def validate_email(self, value):
+        if self.instance is None and User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
 
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -41,7 +44,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
@@ -72,16 +74,16 @@ class LoginSerializer(serializers.Serializer):
         data['user'] = user
         return data
 
-
 class LoginResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     access = serializers.CharField()
     refresh = serializers.CharField()
-    user = UserSerializer() 
+    user = UserSerializer()
 
+    class Meta:
+        ref_name = "LoginResponse"
 
 class OTPSerializer(serializers.Serializer):
-
     email = serializers.EmailField(required=True)
 
     def validate_email(self, value):
@@ -91,22 +93,22 @@ class OTPSerializer(serializers.Serializer):
 
 
 class SendOTPResponseSerializer(serializers.Serializer):
-
     message = serializers.CharField()
     email = serializers.EmailField()
 
+    class Meta:
+        ref_name = "SendOTPResponse"
+
 
 class ErrorResponseSerializer(serializers.Serializer):
-
     error = serializers.CharField()
     detail = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
-        ref_name = "GenericErrorResponse" 
+        ref_name = "GenericErrorResponse"
 
 
 class VerifyOTPSerializer(serializers.Serializer):
-
     email = serializers.EmailField(required=True)
     otp = serializers.CharField(min_length=6, max_length=6, required=True)
 
@@ -117,34 +119,34 @@ class VerifyOTPSerializer(serializers.Serializer):
 
 
 class VerifyOTPResponseSerializer(serializers.Serializer):
-
     message = serializers.CharField()
     email = serializers.EmailField()
 
+    class Meta:
+        ref_name = "VerifyOTPResponse"
+
 
 class ChangePasswordSerializer(serializers.Serializer):
-
     old_password = serializers.CharField(write_only=True, required=True)
     new_password = serializers.CharField(write_only=True, min_length=8, required=True)
 
     def validate_new_password(self, value):
         try:
-
             validate_password(value, user=self.context.get('request', {}).user)
         except DjangoValidationError as e:
-
             raise serializers.ValidationError(e.messages)
         return value
 
 
 class ChangePasswordResponseSerializer(serializers.Serializer):
-
     message = serializers.CharField()
     full_name = serializers.CharField()
 
+    class Meta:
+        ref_name = "ChangePasswordResponse"
+
 
 class SetNewPasswordSerializer(serializers.Serializer):
-
     email = serializers.EmailField(required=True)
     new_password = serializers.CharField(write_only=True, min_length=8, required=True)
     confirm_password = serializers.CharField(write_only=True, min_length=8, required=True)
@@ -160,6 +162,12 @@ class SetNewPasswordSerializer(serializers.Serializer):
 
         return data
 
+    class Meta:
+        ref_name = "SetNewPassword"
+
 
 class MessageResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
+
+    class Meta:
+        ref_name = "MessageResponse"
