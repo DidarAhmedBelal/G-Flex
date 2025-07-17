@@ -2,9 +2,42 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import render
+
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, SendMessageSerializer, MessageSerializer
-from django.shortcuts import render
+from .chat import generate_response, extract_text_from_pdf, chunk_text, create_embeddings_batch, precompute_label_embeddings
+
+import os
+import pickle
+
+# === Base directory of your project (where manage.py is) ===
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# === Full path to your PDF file ===
+pdf_path = os.path.join(BASE_DIR, "chat", "The_Apple_and_The_Stone (10) (1) (2).pdf")
+
+# Extract text from PDF
+text = extract_text_from_pdf(pdf_path)
+
+# Chunk the extracted text
+chunks = chunk_text(text)
+
+# Path for embeddings cache file
+embedding_path = os.path.join(BASE_DIR, "chat", "pdf_embeddings.pkl")
+
+# Load or create embeddings
+if os.path.exists(embedding_path):
+    with open(embedding_path, "rb") as f:
+        embeddings = pickle.load(f)
+else:
+    embeddings = create_embeddings_batch(chunks)
+    with open(embedding_path, "wb") as f:
+        pickle.dump(embeddings, f)
+
+# Precompute label embeddings for motivational quotes
+label_embeddings = precompute_label_embeddings()
+
 
 class ConversationViewSet(viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
@@ -12,14 +45,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Avoid errors during Swagger schema generation
         if getattr(self, 'swagger_fake_view', False):
             return Conversation.objects.none()
-
-        user = self.request.user
-        if user.is_authenticated:
-            return self.queryset.filter(user=user)
-        return self.queryset.none()
+        return self.queryset.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -27,34 +55,29 @@ class ConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def send_message(self, request, pk=None):
         conv = self.get_object()
-
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user_msg = serializer.validated_data['content'].strip()
 
-        # If no title, set it from the first message
+        mode = request.data.get("mode", "friend").lower()
+
         if not conv.title:
             conv.title = f"User: {user_msg[:50]}"
             conv.save()
 
-        # Save user message
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
-        # Generate dummy AI reply (replace with OpenAI call if needed)
-        if user_msg == "hello":
-            dummy_reply = "Hello! How can I assist you today?"
-        elif user_msg == "bye":
-            dummy_reply = "Goodbye! Have a great day!"
-        elif user_msg == "help":
-            dummy_reply = "Sure! What do you need help with?"
-        else:
-            dummy_reply = "I'm not sure how to respond to that."
-            
-        Message.objects.create(conversation=conv, role='ai', content=dummy_reply)
+        # Get previous user messages in this conversation
+        previous = list(conv.messages.filter(role='user').values_list('content', flat=True))
+
+        # Generate AI response
+        ai_reply = generate_response(user_msg, chunks, embeddings, label_embeddings, previous, mode)
+
+        Message.objects.create(conversation=conv, role='ai', content=ai_reply)
 
         return Response({
             "User": user_msg,
-            "AI": dummy_reply
+            "AI": ai_reply
         }, status=200)
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])

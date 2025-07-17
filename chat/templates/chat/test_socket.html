@@ -18,34 +18,46 @@
       margin-bottom: 10px;
     }
     #user-input {
-      width: 80%;
+      width: 70%;
       padding: 10px;
     }
     #send-btn {
       padding: 10px 20px;
     }
+    #mode-select {
+      padding: 10px;
+      margin-left: 10px;
+    }
   </style>
 </head>
 <body>
 
-  <h2>Chat with Dummy AI</h2>
+  <h2>Chat with AI</h2>
   <div id="chat-box"></div>
 
   <input type="text" id="user-input" placeholder="Type your message..." />
   <button id="send-btn">Send</button>
+  <select id="mode-select">
+    <option value="coach">Coach</option>
+    <option value="friend">Friend</option>
+  </select>
 
   <script>
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
+    const modeSelect = document.getElementById('mode-select');
 
-    const conversationId = 1; 
-    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUyNzE1NzkxLCJpYXQiOjE3NTI2MjkzOTEsImp0aSI6IjU4MTUyNGY3MWUxNzQ0M2I5MzQ0MGQ1YzUzMmQwZjMxIiwidXNlcl9pZCI6MX0.97TS8qGRiCFHMeTos2zKzMnBSq639o-J8ueoNvT3pls"; // 🔁 Replace with actual JWT token
+    const conversationId = 1; // ✅ Update this to your actual conversation ID
+    const token = "YOUR_JWT_TOKEN_HERE"; // 🔁 Replace this with your actual JWT token
 
     async function sendMessage() {
       const message = userInput.value.trim();
+      const mode = modeSelect.value;
+
       if (!message) return;
 
+      // Show user message
       chatBox.innerHTML += `User: ${message}\nBot: `;
       userInput.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
@@ -57,8 +69,13 @@
             'Content-Type': 'application/json',
             'Authorization': `JWT ${token}`
           },
-          body: JSON.stringify({ content: message })
+          body: JSON.stringify({
+            content: message,
+            mode: mode
+          })
         });
+
+        if (!res.ok) throw new Error("Server returned error");
 
         const data = await res.json();
         const botResponse = data.AI;
@@ -78,13 +95,13 @@
         typeWriter();
 
       } catch (err) {
-        chatBox.innerHTML += "\nError contacting server.\n\n";
+        console.error(err);
+        chatBox.innerHTML += "\nError contacting server. Check token or server status.\n\n";
       }
     }
 
     sendBtn.addEventListener('click', sendMessage);
 
-    // Optional: enter key support
     userInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') sendMessage();
     });
