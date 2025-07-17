@@ -21,7 +21,6 @@ router.register('donations', DonationViewSet, basename='donation')
 router.register('conversations', ConversationViewSet, basename='conversation')
 # POST /api/conversations/1/send_message/
 
-
 # POST message:
 # POST /api/conversations/<conversation_id>/send_message/
 # → Sends user message, stores reply.
