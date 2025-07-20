@@ -344,6 +344,12 @@ class SetNewPasswordView(GenericAPIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+from datetime import date, timedelta
+from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import FriendBirthday, WishMessage
+from .serializers import FriendBirthdaySerializer, WishMessageSerializer
 
 
 class FriendBirthdayViewSet(viewsets.ModelViewSet):
@@ -351,6 +357,14 @@ class FriendBirthdayViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Prevent schema generation errors in Swagger
+        if getattr(self, 'swagger_fake_view', False):
+            return FriendBirthday.objects.none()
+
+        # Protect from AnonymousUser
+        if not self.request.user.is_authenticated:
+            return FriendBirthday.objects.none()
+
         return FriendBirthday.objects.filter(user=self.request.user).order_by('birthday')
 
     def perform_create(self, serializer):
@@ -358,20 +372,26 @@ class FriendBirthdayViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def today(self, request):
+        """Get friends whose birthday is today."""
         today = date.today()
-        friends = self.get_queryset().filter(birthday__month=today.month, birthday__day=today.day)
+        friends = self.get_queryset().filter(
+            birthday__month=today.month,
+            birthday__day=today.day
+        )
         serializer = self.get_serializer(friends, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):
+        """Get friends with upcoming birthdays in the next 30 days."""
         today = date.today()
         upcoming_date = today + timedelta(days=30)
-        friends = self.get_queryset().filter(birthday__gt=today, birthday__lte=upcoming_date)
+        friends = self.get_queryset().filter(
+            birthday__gt=today,
+            birthday__lte=upcoming_date
+        )
         serializer = self.get_serializer(friends, many=True)
         return Response(serializer.data)
-
-
 
 
 class WishMessageViewSet(viewsets.ReadOnlyModelViewSet):

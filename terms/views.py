@@ -1,25 +1,30 @@
-from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView, ListAPIView
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework import viewsets
+from rest_framework.generics import RetrieveAPIView
+from rest_framework.permissions import IsAdminUser, AllowAny
 from .models import Terms
 from .serializers import TermsSerializer
 
 
-class AdminTermsListCreateView(ListCreateAPIView):
+# ✅ Admin: Full access to create, update, delete terms and privacy
+class AdminTermsViewSet(viewsets.ModelViewSet):
     queryset = Terms.objects.all()
     serializer_class = TermsSerializer
     permission_classes = [IsAdminUser]
 
 
-class AdminTermsDetailView(RetrieveUpdateDestroyAPIView):
-    queryset = Terms.objects.all()
+# ✅ Public: Read-Only - Latest Terms & Conditions
+class TermsConditionView(RetrieveAPIView):
     serializer_class = TermsSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [AllowAny]
+
+    def get_object(self):
+        return Terms.objects.filter(type='terms').order_by('-created_at').first()
 
 
-class TermsByTypeListView(ListAPIView):
+# ✅ Public: Read-Only - Latest Privacy Policy
+class PrivacyPolicyView(RetrieveAPIView):
     serializer_class = TermsSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-    def get_queryset(self):
-        type_param = self.kwargs.get('type')
-        return Terms.objects.filter(type=type_param).order_by('-created_at')[:1]
+    def get_object(self):
+        return Terms.objects.filter(type='privacy').order_by('-created_at').first()

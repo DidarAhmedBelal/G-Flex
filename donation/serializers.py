@@ -1,14 +1,62 @@
 from rest_framework import serializers
-from .models import Donation, TotalDonation
+from .models import Donation, TotalDonation, DonationCampaign
 from django.contrib.auth import get_user_model
-from django.db.models import Sum
 
 User = get_user_model()
 
 
+# ----------------------------
+# Campaign Serializers
+# ----------------------------
+
+class DonationCampaignSerializer(serializers.ModelSerializer):
+    progress_percentage = serializers.SerializerMethodField()
+    raised_display = serializers.SerializerMethodField()
+    class Meta:
+        model = DonationCampaign
+        fields = [
+            'id',
+            'title',
+            'organization',
+            'description',
+            'goal_amount',
+            'raised_amount',
+            'supporters',
+            'thumbnail',
+            'is_active',
+            'created_at',
+            'progress_percentage',
+            'raised_display',
+        ]
+
+    def get_progress_percentage(self, obj):
+        return obj.progress_percentage()
+    
+    def get_raised_display(self, obj):
+        percentage = obj.progress_percentage()
+        return f"${obj.raised_amount} ({percentage}%)"
+
+
+class CreateDonationCampaignSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DonationCampaign
+        fields = [
+            'title',
+            'organization',
+            'description',
+            'goal_amount',
+            'thumbnail',
+            'is_active',
+        ]
+
+
+# ----------------------------
+# Donation Serializers
+# ----------------------------
+
 class DonationSerializer(serializers.ModelSerializer):
     user_email = serializers.CharField(source='user.email', read_only=True)
-    rating = serializers.IntegerField(read_only=True)
+    campaign_title = serializers.CharField(source='campaign.title', read_only=True)
 
     class Meta:
         model = Donation
@@ -16,6 +64,8 @@ class DonationSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'user_email',
+            'campaign',
+            'campaign_title',
             'donor_name',
             'donor_email',
             'amount',
@@ -33,30 +83,28 @@ class DonationSerializer(serializers.ModelSerializer):
             'donated_at',
             'transaction_id',
             'payment_status',
+            'rating',
             'donor_name',
             'donor_email',
-            'rating',
         ]
 
 
 class CreateDonationSessionSerializer(serializers.Serializer):
-    amount = serializers.CharField(help_text="Donation amount (e.g. '20.00')")
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    campaign_id = serializers.IntegerField(required=True)
     donation_id = serializers.IntegerField(required=False, help_text="(Optional) ID of admin-created donation request")
-    donor_name = serializers.CharField(required=False, help_text="Optional if user is authenticated")
-    donor_email = serializers.EmailField(required=False, help_text="Required for guest users")
-    message = serializers.CharField(required=False, allow_blank=True, help_text="Optional message")
+    donor_name = serializers.CharField(required=False, allow_blank=True)
+    donor_email = serializers.EmailField(required=False)
+    message = serializers.CharField(required=False, allow_blank=True)
 
 
 class RateDonationSerializer(serializers.Serializer):
-    rating = serializers.IntegerField(
-        min_value=1,
-        max_value=5,
-        help_text="Rating from 1 to 5"
-    )
+    rating = serializers.IntegerField(min_value=1, max_value=5)
 
 
-
-
+# ----------------------------
+# Summary & Stats Serializers
+# ----------------------------
 
 class UserDonationSummarySerializer(serializers.Serializer):
     total_donated = serializers.DecimalField(max_digits=12, decimal_places=2)

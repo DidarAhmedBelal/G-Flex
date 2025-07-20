@@ -39,8 +39,8 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
                     'quantity': 1,
                 }],
                 mode='payment',
-                success_url='http://localhost:8000/payment-success/',
-                cancel_url='http://localhost:8000/payment-cancel/',
+                success_url = 'myapp://payment-success',
+                cancel_url = 'myapp://payment-cancel',
                 metadata={
                     'plan_id': str(plan.id),
                     'user_id': str(request.user.id),
