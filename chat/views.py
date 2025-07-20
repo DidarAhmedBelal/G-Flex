@@ -5,8 +5,19 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import render
 
 from .models import Conversation, Message
-from .serializers import ConversationSerializer, SendMessageSerializer, MessageSerializer
-from .chat import generate_response, extract_text_from_pdf, chunk_text, create_embeddings_batch, precompute_label_embeddings
+from .serializers import (
+    ConversationSerializer,
+    SendMessageSerializer,
+    MessageSerializer,
+    ModeSelectSerializer
+)
+from .chat import (
+    generate_response,
+    extract_text_from_pdf,
+    chunk_text,
+    create_embeddings_batch,
+    precompute_label_embeddings
+)
 
 import os
 import pickle
@@ -17,16 +28,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # === Full path to your PDF file ===
 pdf_path = os.path.join(BASE_DIR, "chat", "The_Apple_and_The_Stone (10) (1) (2).pdf")
 
-# Extract text from PDF
+# Extract and chunk text
 text = extract_text_from_pdf(pdf_path)
-
-# Chunk the extracted text
 chunks = chunk_text(text)
 
-# Path for embeddings cache file
+# === Load or generate PDF embeddings ===
 embedding_path = os.path.join(BASE_DIR, "chat", "pdf_embeddings.pkl")
-
-# Load or create embeddings
 if os.path.exists(embedding_path):
     with open(embedding_path, "rb") as f:
         embeddings = pickle.load(f)
@@ -35,7 +42,7 @@ else:
     with open(embedding_path, "wb") as f:
         pickle.dump(embeddings, f)
 
-# Precompute label embeddings for motivational quotes
+# Precompute label embeddings
 label_embeddings = precompute_label_embeddings()
 
 
@@ -52,14 +59,34 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[IsAuthenticated],
+        serializer_class=ModeSelectSerializer  
+    )
+    def select_mode(self, request):
+        serializer = self.get_serializer(data=request.data)  
+        serializer.is_valid(raise_exception=True)
+        mode = serializer.validated_data["mode"]
+
+        conv = Conversation.objects.create(user=request.user, mode=mode)
+
+        return Response({
+            "message": f"Mode '{mode}' selected.",
+            "conversation_id": conv.id
+        }, status=201)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def send_message(self, request, pk=None):
         conv = self.get_object()
+
+        if not conv.mode:
+            return Response({"error": "Mode not set. Please set mode first."}, status=400)
+
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user_msg = serializer.validated_data['content'].strip()
-
-        mode = request.data.get("mode", "friend").lower()
 
         if not conv.title:
             conv.title = f"User: {user_msg[:50]}"
@@ -67,11 +94,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
-        # Get previous user messages in this conversation
         previous = list(conv.messages.filter(role='user').values_list('content', flat=True))
-
-        # Generate AI response
-        ai_reply = generate_response(user_msg, chunks, embeddings, label_embeddings, previous, mode)
+        ai_reply = generate_response(user_msg, chunks, embeddings, label_embeddings, previous, conv.mode)
 
         Message.objects.create(conversation=conv, role='ai', content=ai_reply)
 

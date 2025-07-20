@@ -5,6 +5,7 @@ from django.conf import settings
 class Conversation(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conversations")
     title = models.CharField(max_length=255, blank=True, null=True)
+    mode = models.CharField(max_length=10, choices=(('friend', 'Friend'), ('coach', 'Coach')), blank=True, null=True) 
     created_at = models.DateTimeField(auto_now_add=True)
 
 class Message(models.Model):

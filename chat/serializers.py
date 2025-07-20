@@ -10,8 +10,8 @@ class MessageSerializer(serializers.ModelSerializer):
 class ConversationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
-        fields = ['id', 'title', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'title', 'mode', 'created_at']
+        read_only_fields = ['created_at', 'mode']
 
 class SendMessageSerializer(serializers.Serializer):
     content = serializers.CharField(required=False, allow_blank=False)
@@ -23,3 +23,9 @@ class SendMessageSerializer(serializers.Serializer):
             raise serializers.ValidationError("Either 'content' or 'title' is required.")
         data["content"] = content.strip()
         return data
+
+class ModeSelectSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(
+        choices=[("friend", "Friend"), ("coach", "Coach")],
+        label="Mode"
+    )

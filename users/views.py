@@ -12,7 +12,18 @@ from datetime import timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.generics import ListAPIView
-
+from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from datetime import date, timedelta
+from .models import FriendBirthday, WishMessage
+from .serializers import FriendBirthdaySerializer, WishMessageSerializer
+from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from datetime import date, timedelta
+from .models import FriendBirthday, WishMessage
+from .serializers import FriendBirthdaySerializer, WishMessageSerializer
 from .serializers import (
     UserSerializer,
     LoginSerializer,
@@ -69,11 +80,13 @@ class SignupView(CreateAPIView):
             'user': UserSerializer(user).data
         }, status=status.HTTP_201_CREATED)
 
+
 class MyProfileView(RetrieveUpdateAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     def get_object(self):
         return self.request.user
+
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -96,6 +109,8 @@ class LoginView(APIView):
             "refresh": str(refresh),
             "user": user_data  
         }, status=status.HTTP_200_OK)
+
+
 
 
 class SendVerificationOTPView(GenericAPIView):
@@ -141,6 +156,7 @@ class SendVerificationOTPView(GenericAPIView):
             return Response({'message': 'Verification OTP sent successfully', 'email': email}, status=200)
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
+
 
 
 class VerifyAccountOTPView(GenericAPIView):
@@ -220,6 +236,9 @@ class SendPasswordResetOTPView(GenericAPIView):
         except User.DoesNotExist:
             return Response({'error': 'User not found'}, status=404)
 
+
+
+
 class VerifyPasswordResetOTPView(GenericAPIView):
     serializer_class = VerifyOTPSerializer
     permission_classes = [AllowAny]
@@ -249,6 +268,7 @@ class VerifyPasswordResetOTPView(GenericAPIView):
             return Response({'message': 'OTP verified. You can now reset your password.', 'email': email}, status=200)
         except User.DoesNotExist:
             return Response({'error': 'Invalid OTP or email'}, status=400)
+
 
 
 
@@ -282,6 +302,8 @@ class ChangePasswordView(GenericAPIView):
             {'message': 'Password changed successfully', 'full_name': full_name},
             status=status.HTTP_200_OK
         )
+
+
 
 
 class SetNewPasswordView(GenericAPIView):
@@ -321,3 +343,38 @@ class SetNewPasswordView(GenericAPIView):
                 {'error': 'User not found', 'detail': 'No user registered with this email address.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+
+class FriendBirthdayViewSet(viewsets.ModelViewSet):
+    serializer_class = FriendBirthdaySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return FriendBirthday.objects.filter(user=self.request.user).order_by('birthday')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def today(self, request):
+        today = date.today()
+        friends = self.get_queryset().filter(birthday__month=today.month, birthday__day=today.day)
+        serializer = self.get_serializer(friends, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def upcoming(self, request):
+        today = date.today()
+        upcoming_date = today + timedelta(days=30)
+        friends = self.get_queryset().filter(birthday__gt=today, birthday__lte=upcoming_date)
+        serializer = self.get_serializer(friends, many=True)
+        return Response(serializer.data)
+
+
+
+
+class WishMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = WishMessage.objects.all()
+    serializer_class = WishMessageSerializer
+    permission_classes = [permissions.AllowAny]

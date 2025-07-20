@@ -16,9 +16,7 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 class DashboardStatsView(APIView):
-
     permission_classes = [IsAdminUser]
-
     @swagger_auto_schema(
         responses={200: DashboardStatsSerializer}
     )

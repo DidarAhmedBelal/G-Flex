@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Donation
+from .models import Donation, TotalDonation
+from django.contrib.auth import get_user_model
+from django.db.models import Sum
+
+User = get_user_model()
 
 
 class DonationSerializer(serializers.ModelSerializer):
@@ -49,3 +53,27 @@ class RateDonationSerializer(serializers.Serializer):
         max_value=5,
         help_text="Rating from 1 to 5"
     )
+
+
+
+
+
+class UserDonationSummarySerializer(serializers.Serializer):
+    total_donated = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class PerUserDonationSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    user_email = serializers.EmailField()
+    user_total = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class AdminDonationSummarySerializer(serializers.Serializer):
+    total_all_users = serializers.DecimalField(max_digits=15, decimal_places=2)
+    per_user_donations = PerUserDonationSerializer(many=True)
+
+
+class TotalDonationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TotalDonation
+        fields = ['total_amount', 'total_count']

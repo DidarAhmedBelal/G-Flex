@@ -69,3 +69,19 @@ class User(AbstractUser):
                 (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
             )
         return None
+
+
+class FriendBirthday(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_birthdays')
+    name = models.CharField(max_length=100)
+    relation = models.CharField(max_length=100)
+    birthday = models.DateField()
+
+    def __str__(self):
+        return f"{self.name} ({self.relation}) - {self.birthday}"
+
+class WishMessage(models.Model):
+    message = models.TextField()
+
+    def __str__(self):
+        return self.message[:50] + '...'

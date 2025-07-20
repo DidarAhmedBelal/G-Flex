@@ -1,8 +1,5 @@
 from rest_framework import serializers
-from .models import SubscriptionPlan
-from rest_framework import serializers
-from .models import UserSubscription
-from donation.models import Donation
+from .models import SubscriptionPlan, UserSubscription
 
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     duration_weeks = serializers.SerializerMethodField()
@@ -15,12 +12,9 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
         return obj.duration_days // 7
 
 
-
 class UserSubscriptionSerializer(serializers.ModelSerializer):
     plan_name = serializers.ReadOnlyField(source='plan.name')
     user_email = serializers.ReadOnlyField(source='user.email')
-    donations = serializers.StringRelatedField(many=True)
-
 
     class Meta:
         model = UserSubscription

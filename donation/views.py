@@ -185,7 +185,7 @@
 #         return Response({'status': 'success'})
 
 
-
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets, mixins, status
 from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework.response import Response
@@ -197,13 +197,28 @@ from django.utils.decorators import method_decorator
 from rest_framework.generics import CreateAPIView
 from rest_framework.views import APIView
 import stripe
-
+from rest_framework.permissions import IsAdminUser
+from rest_framework.views import APIView
+from django.db.models import Sum
 from .models import Donation
 from .serializers import (
     DonationSerializer,
     CreateDonationSessionSerializer,
     RateDonationSerializer
 )
+from django.db import models
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.response import Response
+from django.db.models import Sum
+from .models import Donation, TotalDonation
+from .serializers import (
+    UserDonationSummarySerializer,
+    AdminDonationSummarySerializer,
+    PerUserDonationSerializer,
+    TotalDonationSerializer
+)
+
 
 User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -229,7 +244,6 @@ class DonationViewSet(mixins.ListModelMixin,
         donation.rating = serializer.validated_data['rating']
         donation.save()
         return Response({"detail": "Thank you for your rating!"})
-
 
 class CreateDonationCheckoutSessionView(CreateAPIView):
     serializer_class = CreateDonationSessionSerializer
@@ -330,3 +344,59 @@ class StripeWebhookView(APIView):
                 return Response({'error': str(e)}, status=500)
 
         return Response({'status': 'success'})
+
+
+
+class UserDonationSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        total = Donation.objects.filter(user=user, payment_status='completed').aggregate(
+            total_amount=Sum('amount')
+        )['total_amount'] or 0.0
+
+        serializer = UserDonationSummarySerializer({'total_donated': total})
+        return Response(serializer.data)
+
+
+class AdminDonationSummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        total_all = Donation.objects.filter(payment_status='completed').aggregate(
+            total_all=Sum('amount')
+        )['total_all'] or 0.0
+
+        per_user = Donation.objects.filter(payment_status='completed').values(
+            'user__id', 'user__email'
+        ).annotate(user_total=Sum('amount')).order_by('-user_total')
+
+        # Convert for serializer
+        data = [
+            {
+                'user_id': row['user__id'],
+                'user_email': row['user__email'] or 'Guest',
+                'user_total': row['user_total']
+            }
+            for row in per_user if row['user__id'] is not None
+        ]
+
+        serializer = AdminDonationSummarySerializer({
+            'total_all_users': total_all,
+            'per_user_donations': data
+        })
+
+        return Response(serializer.data)
+
+
+class PublicDonationSummaryView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        summary = TotalDonation.objects.first()
+        if summary:
+            serializer = TotalDonationSerializer(summary)
+        else:
+            serializer = TotalDonationSerializer({'total_amount': 0.0, 'total_count': 0})
+        return Response(serializer.data)

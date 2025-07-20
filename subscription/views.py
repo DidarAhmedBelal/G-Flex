@@ -3,19 +3,22 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
+from django.conf import settings
 from django.contrib.auth import get_user_model
+
 from .models import SubscriptionPlan, UserSubscription
 from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer
-from users.serializers import UserSerializer 
+from users.serializers import UserSerializer
+
 import stripe
 
 User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
+
+class SubscriptionPlanViewSet(viewsets.ModelViewSet):
     queryset = SubscriptionPlan.objects.filter(is_active=True)
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [AllowAny]
@@ -57,9 +60,7 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return UserSubscription.objects.none()
 
-        if self.request.user.is_authenticated:
-            return UserSubscription.objects.filter(user=self.request.user)
-        return UserSubscription.objects.none()
+        return UserSubscription.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -76,6 +77,7 @@ class SubscribedUsersView(APIView):
         users = User.objects.filter(id__in=subscribed_user_ids)
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
+
 
 @csrf_exempt
 def stripe_webhook(request):
@@ -103,8 +105,10 @@ def stripe_webhook(request):
             user = User.objects.get(id=user_id)
             plan = SubscriptionPlan.objects.get(id=plan_id)
 
+            # Deactivate previous subscriptions
             UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
 
+            # Create new subscription
             UserSubscription.objects.create(
                 user=user,
                 plan=plan,

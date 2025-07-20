@@ -4,21 +4,26 @@ from django.urls import path, include
 from users.views import (
     UserList, NewUsersView, ActiveUsersView, LoginView, SignupView, MyProfileView,
     ChangePasswordView, SetNewPasswordView, SendVerificationOTPView, VerifyAccountOTPView,
-    SendPasswordResetOTPView, VerifyPasswordResetOTPView
+    SendPasswordResetOTPView, VerifyPasswordResetOTPView, FriendBirthdayViewSet, WishMessageViewSet
 )
 from dashboard.views import DashboardStatsView, MonthlyUserTrendView
 from subscription.views import (
     SubscriptionPlanViewSet, UserSubscriptionViewSet, SubscribedUsersView, stripe_webhook as subscription_stripe_webhook
 )
 from terms.views import ( AdminTermsListCreateView, AdminTermsDetailView, TermsByTypeListView)   
-from donation.views import ( CreateDonationCheckoutSessionView, StripeWebhookView, DonationViewSet)
+from donation.views import ( CreateDonationCheckoutSessionView, StripeWebhookView, DonationViewSet, UserDonationSummaryView, AdminDonationSummaryView, PublicDonationSummaryView)
 from chat.views import ConversationViewSet, websocket_test_view
+
 router = DefaultRouter()
 router.register('users', UserList, basename='user')
 router.register('plans', SubscriptionPlanViewSet, basename='plan')
 router.register('subscriptions', UserSubscriptionViewSet, basename='subscription')
 router.register('donations', DonationViewSet, basename='donation')
 router.register('conversations', ConversationViewSet, basename='conversation')
+
+router.register('friends', FriendBirthdayViewSet, basename='friends')
+router.register('wishes', WishMessageViewSet, basename='wishes')
+
 # POST /api/conversations/1/send_message/
 
 # POST message:
@@ -61,6 +66,10 @@ urlpatterns = [
     # Public view (read-only)
     path('terms/<str:type>/', TermsByTypeListView.as_view(), name='terms-by-type'),
     path("test-socket/", websocket_test_view, name="websocket-test"),
+    path('donations/summary/', UserDonationSummaryView.as_view(), name='user-donation-summary'),
+    path('donations/admin-summary/', AdminDonationSummaryView.as_view(), name='admin-donation-summary'),
+    path('donations/public-summary/', PublicDonationSummaryView.as_view(), name='public-donation-summary'),
+
 
     # Include all router-registered URLs
     path('', include(router.urls)),

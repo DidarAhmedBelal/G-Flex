@@ -7,6 +7,27 @@
       font-family: monospace;
       padding: 20px;
       background-color: #f4f4f4;
+      display: flex;
+      gap: 20px;
+    }
+    #conversation-list {
+      width: 30%;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 400px;
+      overflow-y: auto;
+    }
+    .conversation-item {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+    .conversation-item:hover {
+      background-color: #f0f0f0;
+    }
+    #chat-section {
+      flex: 1;
     }
     #chat-box {
       background: #fff;
@@ -18,11 +39,12 @@
       margin-bottom: 10px;
     }
     #user-input {
-      width: 70%;
+      width: 60%;
       padding: 10px;
     }
-    #send-btn {
+    #send-btn, #new-conv-btn {
       padding: 10px 20px;
+      margin-left: 5px;
     }
     #mode-select {
       padding: 10px;
@@ -32,51 +54,95 @@
 </head>
 <body>
 
-  <h2>Chat with AI</h2>
-  <div id="chat-box"></div>
+  <div id="conversation-list">
+    <h3>My Conversations</h3>
+    <div id="conversations"></div>
+  </div>
 
-  <input type="text" id="user-input" placeholder="Type your message..." />
-  <button id="send-btn">Send</button>
-  <select id="mode-select">
-    <option value="coach">Coach</option>
-    <option value="friend">Friend</option>
-  </select>
+  <div id="chat-section">
+    <h2>Chat with AI</h2>
+    <div id="chat-box">Select a conversation to begin.</div>
+
+    <input type="text" id="user-input" placeholder="Type your message..." />
+    <button id="send-btn">Send</button>
+    <br><br>
+    <select id="mode-select">
+      <option value="coach">Coach</option>
+      <option value="friend">Friend</option>
+    </select>
+    <button id="new-conv-btn">Start New Conversation</button>
+  </div>
 
   <script>
+    const API_BASE = "http://10.10.13.16:100/api";
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUyOTgxMjU2LCJpYXQiOjE3NTI4OTQ4NTYsImp0aSI6IjNhY2EzOWI3YzAyZTQ5OTA4ZTlmMzAwZGE0MTZmMmMzIiwidXNlcl9pZCI6MX0.3QIZ1c5rfyqKnFiQ4JIRPrvYJi2xMLmRfn8ChRqfDB4"; 
+
+    let currentConversationId = null;
+
+    const conversationList = document.getElementById('conversations');
     const chatBox = document.getElementById('chat-box');
     const userInput = document.getElementById('user-input');
     const sendBtn = document.getElementById('send-btn');
     const modeSelect = document.getElementById('mode-select');
+    const newConvBtn = document.getElementById('new-conv-btn');
 
-    const conversationId = 3; // ✅ Update this to your actual conversation ID
-    const token = "YOUR_JWT_TOKEN_HERE"; // 🔁 Replace this with your actual JWT token
+    async function loadConversations() {
+      try {
+        const res = await fetch(`${API_BASE}/conversations/`, {
+          headers: { Authorization: `JWT ${token}` }
+        });
+        const data = await res.json();
+
+        conversationList.innerHTML = '';
+        data.forEach(conv => {
+          const div = document.createElement('div');
+          div.className = 'conversation-item';
+          div.textContent = conv.title || `Conversation #${conv.id}`;
+          div.onclick = () => loadMessages(conv.id);
+          conversationList.appendChild(div);
+        });
+
+      } catch (err) {
+        conversationList.innerHTML = "Error loading conversations.";
+      }
+    }
+
+    async function loadMessages(conversationId) {
+      currentConversationId = conversationId;
+      chatBox.innerHTML = '';
+      try {
+        const res = await fetch(`${API_BASE}/conversations/${conversationId}/messages/`, {
+          headers: { Authorization: `JWT ${token}` }
+        });
+        const messages = await res.json();
+        messages.forEach(msg => {
+          chatBox.innerHTML += `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}\n\n`;
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+      } catch (err) {
+        chatBox.innerHTML = "Error loading messages.";
+      }
+    }
 
     async function sendMessage() {
       const message = userInput.value.trim();
-      const mode = modeSelect.value;
+      if (!message || !currentConversationId) return;
 
-      if (!message) return;
-
-      // Show user message
       chatBox.innerHTML += `User: ${message}\nBot: `;
       userInput.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
 
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/conversations/${conversationId}/send_message/`, {
+        const res = await fetch(`${API_BASE}/conversations/${currentConversationId}/send_message/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `JWT ${token}`
           },
-          body: JSON.stringify({
-            content: message,
-            mode: mode
-          })
+          body: JSON.stringify({ content: message })  // ✅ Do not send mode here
         });
 
-        if (!res.ok) throw new Error("Server returned error");
-
+        if (!res.ok) throw new Error("Server error");
         const data = await res.json();
         const botResponse = data.AI;
 
@@ -95,16 +161,45 @@
         typeWriter();
 
       } catch (err) {
-        console.error(err);
-        chatBox.innerHTML += "\nError contacting server. Check token or server status.\n\n";
+        chatBox.innerHTML += "\nError sending message.\n\n";
+      }
+    }
+
+    async function startNewConversation() {
+      const mode = modeSelect.value;
+
+      try {
+        const res = await fetch(`${API_BASE}/conversations/select_mode/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `JWT ${token}`
+          },
+          body: JSON.stringify({ mode })
+        });
+
+        if (!res.ok) throw new Error("Mode selection failed");
+        const data = await res.json();
+
+        currentConversationId = data.conversation_id;
+        chatBox.innerHTML = `Started new "${mode}" conversation.\n`;
+        userInput.focus();
+
+        await loadConversations();
+        await loadMessages(currentConversationId);
+
+      } catch (err) {
+        chatBox.innerHTML = "Error starting conversation.\n";
       }
     }
 
     sendBtn.addEventListener('click', sendMessage);
-
-    userInput.addEventListener('keypress', function(e) {
+    userInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') sendMessage();
     });
+    newConvBtn.addEventListener('click', startNewConversation);
+
+    loadConversations();
   </script>
 
 </body>

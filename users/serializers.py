@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from users.models import User
+from users.models import User, FriendBirthday, WishMessage
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=True)
@@ -171,3 +171,20 @@ class MessageResponseSerializer(serializers.Serializer):
 
     class Meta:
         ref_name = "MessageResponse"
+
+
+
+
+from rest_framework import serializers
+from .models import FriendBirthday, WishMessage
+
+class FriendBirthdaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FriendBirthday
+        fields = ['id', 'name', 'relation', 'birthday']
+        read_only_fields = ['id']
+
+class WishMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WishMessage
+        fields = ['id', 'message']
