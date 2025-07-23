@@ -50,6 +50,7 @@ class User(AbstractUser):
     otp_request_reset_time = models.DateTimeField(blank=True, null=True)
     reset_password = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+    is_subscribed = models.BooleanField(default=False)
 
     date_of_birth = models.DateField(blank=True, null=True)
 

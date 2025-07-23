@@ -1,13 +1,15 @@
+# subscriptions/serializers.py
+
 from rest_framework import serializers
 from .models import SubscriptionPlan, UserSubscription, SubscriptionFeature
 
-
+# Feature serializer
 class SubscriptionFeatureSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubscriptionFeature
         fields = ['description']
 
-
+# Plan serializer with nested features
 class SubscriptionPlanSerializer(serializers.ModelSerializer):
     duration_weeks = serializers.SerializerMethodField(read_only=True)
     features = SubscriptionFeatureSerializer(many=True)
@@ -51,32 +53,16 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
         return instance
 
+# Plan summary serializer (for embedding inside subscription)
+class SubscriptionPlanSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionPlan
+        fields = ['id', 'name', 'price', 'duration_days', 'is_active']
 
+# Final cleaned-up UserSubscriptionSerializer
 class UserSubscriptionSerializer(serializers.ModelSerializer):
-    plan_name = serializers.ReadOnlyField(source='plan.name')
-    user_email = serializers.ReadOnlyField(source='user.email')
+    plan = SubscriptionPlanSummarySerializer()  # nested plan info
 
     class Meta:
         model = UserSubscription
-        fields = [
-            'id',
-            'user',
-            'plan',
-            'start_date',
-            'end_date',
-            'is_active',
-            'payment_status',
-            'transaction_id',
-            'plan_name',
-            'user_email',
-        ]
-        read_only_fields = (
-            'user',
-            'start_date',
-            'end_date',
-            'is_active',
-            'payment_status',
-            'transaction_id',
-            'plan_name',
-            'user_email',
-        )
+        fields = ['id', 'plan', 'start_date', 'end_date', 'is_active', 'payment_status']
