@@ -15,9 +15,9 @@ from .chat import (
     generate_response,
     extract_text_from_pdf,
     chunk_text,
-    create_embeddings_batch,
-    precompute_label_embeddings
+    create_embeddings_batch
 )
+
 
 import os
 import pickle
@@ -41,9 +41,6 @@ else:
     embeddings = create_embeddings_batch(chunks)
     with open(embedding_path, "wb") as f:
         pickle.dump(embeddings, f)
-
-# Precompute label embeddings
-label_embeddings = precompute_label_embeddings()
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -94,8 +91,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         Message.objects.create(conversation=conv, role='user', content=user_msg)
 
-        previous = list(conv.messages.filter(role='user').values_list('content', flat=True))
-        ai_reply = generate_response(user_msg, chunks, embeddings, label_embeddings, previous, conv.mode)
+
+        # Gather previous messages (user and AI) for conversation history
+        previous_msgs = list(conv.messages.order_by('created_at').values_list('role', 'content'))
+        prev_queries = [f"{role.capitalize()}: {content}" for role, content in previous_msgs]
+        ai_reply = generate_response(user_msg, chunks, embeddings, prev_queries, conv.mode)
 
         Message.objects.create(conversation=conv, role='ai', content=ai_reply)
 

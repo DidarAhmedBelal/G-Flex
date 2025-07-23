@@ -8,6 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 AUTH_USER_MODEL = 'users.User'
 STATIC_URL = '/static/'
 
+STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET")
+
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-bgt5*%=^sk$6l$3lc4*z3$@&iwm2w%32^n2^4071@4=wcjtio=')
 MEDIA_URL = '/profile_pics/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'profile_pics')

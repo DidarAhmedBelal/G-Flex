@@ -4,28 +4,27 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from drf_yasg.utils import swagger_auto_schema
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
 
 from .models import SubscriptionPlan, UserSubscription
 from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer
 from users.serializers import UserSerializer
+from donation.models import Donation, DonationCampaign, TotalDonation
 
 import stripe
-import json
+import logging
 
 User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
+logger = logging.getLogger(__name__)
+
 
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
-    """
-    Viewset to list, retrieve, and manage subscription plans.
-    - Public users (AllowAny) can view all plans (active/inactive).
-    - Admin users can create/update/delete plans.
-    """
     serializer_class = SubscriptionPlanSerializer
 
     def get_permissions(self):
@@ -34,7 +33,7 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
         return [AllowAny()]
 
     def get_queryset(self):
-        return SubscriptionPlan.objects.all()  # Show ALL plans, not just active
+        return SubscriptionPlan.objects.all()
 
     def retrieve(self, request, *args, **kwargs):
         instance = get_object_or_404(SubscriptionPlan.objects.all(), pk=kwargs['pk'])
@@ -44,9 +43,6 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(auto_schema=None)
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def create_checkout_session(self, request, pk=None):
-        """
-        Creates a Stripe Checkout Session for a specific plan, even if it's inactive.
-        """
         plan = get_object_or_404(SubscriptionPlan.objects.all(), pk=pk)
 
         try:
@@ -66,17 +62,18 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
                 metadata={
                     'plan_id': str(plan.id),
                     'user_id': str(request.user.id),
+                    'subscription': 'true'
                 }
             )
             return Response({'checkout_url': session.url}, status=status.HTTP_200_OK)
 
+        except stripe.error.StripeError as e:
+            return Response({'detail': f'Stripe error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': f'Unexpected error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class UserSubscriptionViewSet(viewsets.ModelViewSet):
-    """
-    Viewset for viewing and cancelling user subscriptions.
-    """
     serializer_class = UserSubscriptionSerializer
     permission_classes = [IsAuthenticated]
 
@@ -90,9 +87,6 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def cancel(self, request, pk=None):
-        """
-        Allows the user to cancel their subscription (set is_active=False).
-        """
         subscription = self.get_object()
         if subscription.user != request.user:
             return Response({'detail': 'Not allowed.'}, status=status.HTTP_403_FORBIDDEN)
@@ -102,13 +96,15 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
 
         subscription.is_active = False
         subscription.save()
+
+        user = subscription.user
+        user.is_subscribed = False
+        user.save()
+
         return Response({'status': 'Subscription cancelled.'})
 
 
 class SubscribedUsersView(APIView):
-    """
-    Admin-only view to get all currently subscribed users.
-    """
     permission_classes = [IsAdminUser]
 
     @swagger_auto_schema(auto_schema=None)
@@ -122,51 +118,93 @@ class SubscribedUsersView(APIView):
         return Response(serializer.data)
 
 
-@csrf_exempt
-def stripe_webhook(request):
-    """
-    Webhook to handle Stripe checkout.session.completed event.
-    Creates and activates user subscription.
-    """
-    payload = request.body
-    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
-    endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+@method_decorator(csrf_exempt, name='dispatch')
+class UnifiedStripeWebhookView(APIView):
+    permission_classes = [AllowAny]
 
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, endpoint_secret
-        )
-    except ValueError:
-        return JsonResponse({'error': 'Invalid payload'}, status=400)
-    except stripe.error.SignatureVerificationError:
-        return JsonResponse({'error': 'Invalid signature'}, status=400)
-
-    if event['type'] == 'checkout.session.completed':
-        session = event['data']['object']
-        metadata = session.get('metadata', {})
-        transaction_id = session.get('id')
-        user_id = metadata.get('user_id')
-        plan_id = metadata.get('plan_id')
+    def post(self, request, *args, **kwargs):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
         try:
-            user = User.objects.get(id=user_id)
-            plan = SubscriptionPlan.objects.get(id=plan_id)
-
-            # Idempotency check
-            if not UserSubscription.objects.filter(user=user, transaction_id=transaction_id).exists():
-                # Deactivate old subscriptions
-                UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
-
-                # Create new subscription
-                UserSubscription.objects.create(
-                    user=user,
-                    plan=plan,
-                    payment_status='completed',
-                    transaction_id=transaction_id,
-                    is_active=True
-                )
-
+            event = stripe.Webhook.construct_event(
+                payload=payload,
+                sig_header=sig_header,
+                secret=endpoint_secret
+            )
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"Stripe signature verification failed: {e}")
+            return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.error(f"Error parsing webhook payload: {e}")
+            return Response({"error": "Webhook error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return JsonResponse({'status': 'success'})
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            metadata = session.get('metadata', {})
+            transaction_id = session.get('id')
+            logger.info("Stripe session completed received for transaction: %s", transaction_id)
+
+            if metadata.get("donation") == "true":
+                try:
+                    if Donation.objects.filter(transaction_id=transaction_id).exists():
+                        return Response({'status': 'duplicate_ignored'}, status=status.HTTP_200_OK)
+
+                    user = User.objects.filter(id=metadata.get('user_id')).first()
+                    campaign = DonationCampaign.objects.filter(id=metadata.get('campaign_id')).first()
+
+                    donation = Donation.objects.create(
+                        user=user,
+                        campaign=campaign,
+                        donor_name=metadata.get('donor_name', 'Guest'),
+                        donor_email=metadata.get('donor_email'),
+                        amount=session.get('amount_total', 0) / 100.0,
+                        currency=session.get('currency', 'USD').upper(),
+                        message=metadata.get('message', ''),
+                        transaction_id=transaction_id,
+                        payment_status='completed',
+                        is_request=False
+                    )
+
+                    if campaign:
+                        campaign.raised_amount += donation.amount
+                        campaign.supporters += 1
+                        campaign.save()
+
+                    TotalDonation.update_totals(donation.amount)
+                    logger.info("Donation recorded: id=%s", donation.id)
+                    return Response({'status': 'donation_success'}, status=status.HTTP_200_OK)
+
+                except Exception as e:
+                    logger.error(f"Donation webhook failed: {e}", exc_info=True)
+                    return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            elif metadata.get("subscription") == "true":
+                try:
+                    user = User.objects.get(id=metadata.get('user_id'))
+                    plan = SubscriptionPlan.objects.get(id=metadata.get('plan_id'))
+
+                    if not UserSubscription.objects.filter(user=user, transaction_id=transaction_id).exists():
+                        UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
+
+                        UserSubscription.objects.create(
+                            user=user,
+                            plan=plan,
+                            payment_status='completed',
+                            transaction_id=transaction_id,
+                            is_active=True
+                        )
+
+                        user.is_subscribed = True
+                        user.save()
+
+                    logger.info("Subscription activated for user: %s", user.id)
+                    return Response({'status': 'subscription_success'}, status=status.HTTP_200_OK)
+
+                except Exception as e:
+                    logger.error(f"Subscription webhook failed: {e}", exc_info=True)
+                    return Response({'error': f'Subscription error: {str(e)}'}, status=500)
+
+        logger.info("Unhandled webhook event type: %s", event['type'])
+        return Response({'status': 'event_not_handled'}, status=status.HTTP_200_OK)

@@ -1,3 +1,4 @@
+
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 
@@ -13,21 +14,18 @@ from dashboard.views import DashboardStatsView, MonthlyUserTrendView
 
 # Subscription
 from subscription.views import (
-    SubscriptionPlanViewSet, UserSubscriptionViewSet, SubscribedUsersView,
-    stripe_webhook as subscription_stripe_webhook
+    SubscriptionPlanViewSet, UserSubscriptionViewSet, SubscribedUsersView, UnifiedStripeWebhookView
 )
 
 # Donation
 from donation.views import (
-    DonationViewSet, DonationCampaignViewSet,
-    CreateDonationCheckoutSessionView, StripeWebhookView,
-    UserDonationSummaryView, AdminDonationSummaryView, PublicDonationSummaryView, YearlyDonationGraphView, MonthlyDonationGraphView, FundCollectionView, RateDonationView
+    DonationViewSet, DonationCampaignViewSet, CreateDonationCheckoutSessionView,
+    UserDonationSummaryView, AdminDonationSummaryView, PublicDonationSummaryView,
+    YearlyDonationGraphView, MonthlyDonationGraphView, FundCollectionView, RateDonationView
 )
 
 # Terms
-from terms.views import (
-    AdminTermsViewSet, PrivacyPolicyView, TermsConditionView
-)
+from terms.views import AdminTermsViewSet, PrivacyPolicyView, TermsConditionView
 
 # Chat
 from chat.views import ConversationViewSet, websocket_test_view
@@ -36,6 +34,7 @@ from chat.views import ConversationViewSet, websocket_test_view
 # ---------------------------
 # Router-registered ViewSets
 # ---------------------------
+
 router = DefaultRouter()
 router.register('users', UserList, basename='user')
 router.register('plans', SubscriptionPlanViewSet, basename='plan')
@@ -75,15 +74,14 @@ urlpatterns = [
     path('subscriptions/subscribed-users/', SubscribedUsersView.as_view(), name='subscribed-users'),
     # path('subscriptions/create-checkout-session/', CreateSubscriptionCheckoutSessionView.as_view(), name='create-subscription-session'),
     # POST /plans/{plan_id}/create_checkout_session/
-
-    path('subscriptions/webhook/stripe/', subscription_stripe_webhook, name='subscription-stripe-webhook'),
+    # path('subscriptions/webhook/stripe/', subscription_stripe_webhook, name='subscription-stripe-webhook'),
 
     # --- Donations ---
     path('donation/create-checkout-session/', CreateDonationCheckoutSessionView.as_view(), name='create-donation-session'),
-    path('stripe/webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
     path('donations/summary/', UserDonationSummaryView.as_view(), name='user-donation-summary'),
     path('donations/admin-summary/', AdminDonationSummaryView.as_view(), name='admin-donation-summary'),
     path('donations/public-summary/', PublicDonationSummaryView.as_view(), name='public-donation-summary'),
+    # path('donations/webhook/stripe/', StripeWebhookView.as_view(), name='donation-stripe-webhook'),
 
     # --- Terms ---
     # path('policies/<str:type>/', TermsByTypeListView.as_view(), name='policy-by-type'),  # Authenticated
@@ -92,17 +90,21 @@ urlpatterns = [
     path('terms/', TermsConditionView.as_view(), name='terms-condition'),
     path('privacy/', PrivacyPolicyView.as_view(), name='privacy-policy'),
 
+    # --- Donation Graphs & Fund Collection ---
     path('donations/graph/monthly/', MonthlyDonationGraphView.as_view(), name='monthly-donation-graph'),
     path('donations/graph/yearly/', YearlyDonationGraphView.as_view(), name='yearly-donation-graph'),
     path('donations/fund-collection/', FundCollectionView.as_view(), name='fund-collection'),
 
-
     # --- Chat test endpoint ---
-    path("test-socket/", websocket_test_view, name="websocket-test"),
+    path('test-socket/', websocket_test_view, name='websocket-test'),
 
+    # --- Donation Rating ---
     path('donations/rate/', RateDonationView.as_view(), name='rate-donation'),
 
+    # --- Unified Stripe Webhook ---
+    path('webhooks/stripe/', UnifiedStripeWebhookView.as_view(), name='stripe-webhook'),
 
     # --- All registered ViewSets ---
     path('', include(router.urls)),
 ]
+    
