@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,22 +7,28 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from drf_yasg.utils import swagger_auto_schema
 
 from .models import SubscriptionPlan, UserSubscription
 from .serializers import SubscriptionPlanSerializer, UserSubscriptionSerializer
 from users.serializers import UserSerializer
 
 import stripe
+import json
 
 User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
+    """
+    Viewset to list, retrieve, and checkout subscription plans.
+    """
     queryset = SubscriptionPlan.objects.filter(is_active=True)
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(auto_schema=None)
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def create_checkout_session(self, request, pk=None):
         plan = self.get_object()
@@ -38,9 +44,9 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
                     },
                     'quantity': 1,
                 }],
-                mode='payment',
-                success_url = 'myapp://payment-success',
-                cancel_url = 'myapp://payment-cancel',
+                mode='payment',  # or 'subscription' if you use recurring billing
+                success_url='myapp://payment-success',
+                cancel_url='myapp://payment-cancel',
                 metadata={
                     'plan_id': str(plan.id),
                     'user_id': str(request.user.id),
@@ -53,13 +59,15 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
 
 
 class UserSubscriptionViewSet(viewsets.ModelViewSet):
+    """
+    Viewset for viewing user subscriptions.
+    """
     serializer_class = UserSubscriptionSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return UserSubscription.objects.none()
-
         return UserSubscription.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
@@ -67,8 +75,12 @@ class UserSubscriptionViewSet(viewsets.ModelViewSet):
 
 
 class SubscribedUsersView(APIView):
+    """
+    Admin-only view to get all currently subscribed users.
+    """
     permission_classes = [IsAdminUser]
 
+    @swagger_auto_schema(auto_schema=None)
     def get(self, request):
         subscribed_user_ids = UserSubscription.objects.filter(
             is_active=True
@@ -81,6 +93,9 @@ class SubscribedUsersView(APIView):
 
 @csrf_exempt
 def stripe_webhook(request):
+    """
+    Webhook to handle Stripe checkout.session.completed event.
+    """
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
     endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
@@ -105,17 +120,24 @@ def stripe_webhook(request):
             user = User.objects.get(id=user_id)
             plan = SubscriptionPlan.objects.get(id=plan_id)
 
-            # Deactivate previous subscriptions
-            UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
-
-            # Create new subscription
-            UserSubscription.objects.create(
+            # Idempotency: Prevent duplicate subscriptions
+            existing = UserSubscription.objects.filter(
                 user=user,
-                plan=plan,
-                payment_status='completed',
-                transaction_id=transaction_id,
-                is_active=True
-            )
+                transaction_id=transaction_id
+            ).exists()
+
+            if not existing:
+                # Deactivate old subscriptions
+                UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
+
+                # Create new subscription
+                UserSubscription.objects.create(
+                    user=user,
+                    plan=plan,
+                    payment_status='completed',
+                    transaction_id=transaction_id,
+                    is_active=True
+                )
 
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)

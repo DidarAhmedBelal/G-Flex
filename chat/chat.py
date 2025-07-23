@@ -218,6 +218,7 @@ def generate_response(user_message, text_chunks, embeddings, label_embeddings, p
         f"Do not copy large blocks of text from the context.\n"
         f"If you provide a motivational quote, practical suggestion, daily task, or follow-up question, use the following format for {mode_label} mode:\n"
         f"Try to understand the user query and only if applicable give the templated response. Don't make every response with this given coach and friend format strictly \n"
+        f"make the chatbot converstional way that feels like it is talking with actual mental health coach and do not give the same structure response every time.\n "
         f"If user is asking about mental health, emotional wellbeing, self-care, motivation, or personal growth, use this format otherwise reply in generic way:\n"
         f"If Coach mode, use this format:\n"
         f"**[Coach Mode] Your Plan:**\n\n1. **What’s going on:** <summary/explanation>\n\n2. **Try this:** <practical suggestion>\n\n3. **Motivation:** \"<motivational quote>\"\n\n4. **Today’s Task:** <short daily task>\n"
@@ -229,6 +230,7 @@ def generate_response(user_message, text_chunks, embeddings, label_embeddings, p
         f"if the user ask any question that does not relate to mental health, just say: \"I am here to help you with mental health related issues only and try to pull the problem by asking questions by following up the the problems.\n"
         f"Make sure to provide a practical suggestion, a motivational quote, and a short daily task.\n"
         f"Dont provide the template always if it is not relevant, just reply with a supportive message if that's most appropriate.\n"
+        f"make the chatbot converstional way that feels like it is talking with best friend and do not give the same structure response every time.\n "
         f"Make your response a bit more detailed and thoughtful, offering extra context, encouragement, or explanation as appropriate."
     )
     response = openai.ChatCompletion.create(

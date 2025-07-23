@@ -125,3 +125,8 @@ class TotalDonationSerializer(serializers.ModelSerializer):
     class Meta:
         model = TotalDonation
         fields = ['total_amount', 'total_count']
+
+
+class RateDonationInputSerializer(serializers.Serializer):
+    donation_id = serializers.IntegerField()
+    rating = serializers.IntegerField(min_value=1, max_value=5)

@@ -16,6 +16,15 @@ class SubscriptionPlan(models.Model):
         return self.name
 
 
+class SubscriptionFeature(models.Model):
+    plan = models.ForeignKey(SubscriptionPlan, related_name='features', on_delete=models.CASCADE)
+    description = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.plan.name} - {self.description}"
+
+
+
 class UserSubscription(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

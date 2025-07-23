@@ -56,6 +56,7 @@ class Donation(models.Model):
     message = models.TextField(blank=True)
     donated_at = models.DateTimeField(auto_now_add=True)
 
+
     transaction_id = models.CharField(max_length=255, unique=True, blank=True, null=True)
     payment_status = models.CharField(max_length=50, choices=PAYMENT_STATUSES, default='pending')
     rating = models.PositiveSmallIntegerField(null=True, blank=True, help_text="1-5 star rating")

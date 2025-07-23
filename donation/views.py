@@ -10,7 +10,12 @@ from django.db.models import Sum
 from django.conf import settings
 from django.contrib.auth import get_user_model
 import stripe
-
+from django.db.models.functions import TruncMonth, TruncYear
+from collections import defaultdict
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+import datetime
 from .models import Donation, DonationCampaign, TotalDonation
 from .serializers import (
     DonationSerializer,
@@ -23,6 +28,22 @@ from .serializers import (
     PerUserDonationSerializer,
     TotalDonationSerializer
 )
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from django.db.models import Sum
+from .models import Donation
+from django.db.models.functions import TruncMonth, TruncYear
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from django.db.models import Sum
+from donation.models import Donation
+import datetime
+from collections import OrderedDict
+
+from django.db.models.functions import TruncMonth, TruncWeek
+
 
 User = get_user_model()
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -31,6 +52,22 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # ---------------------------
 # Donation Campaign Views
 # ---------------------------
+
+
+
+class FundCollectionView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        total_amount = Donation.objects.filter(payment_status='completed').aggregate(
+            total=Sum('amount')
+        )['total'] or 0.0
+
+        return Response({
+            'fund_collection': round(total_amount, 2)
+        })
+
+
 
 class DonationCampaignViewSet(viewsets.ModelViewSet):
     queryset = DonationCampaign.objects.all().order_by('-created_at')
@@ -127,6 +164,34 @@ class CreateDonationCheckoutSessionView(CreateAPIView):
             return Response({'checkout_url': session.url})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework import status
+from .models import Donation
+from .serializers import RateDonationInputSerializer
+
+class RateDonationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RateDonationInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        donation_id = serializer.validated_data['donation_id']
+        rating = serializer.validated_data['rating']
+
+        try:
+            donation = Donation.objects.get(id=donation_id)
+        except Donation.DoesNotExist:
+            return Response({"detail": "Donation not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        donation.rating = rating
+        donation.save()
+
+        return Response({"detail": "Thank you for your rating!"})
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -238,3 +303,77 @@ class PublicDonationSummaryView(APIView):
         else:
             serializer = TotalDonationSerializer({'total_amount': 0.0, 'total_count': 0})
         return Response(serializer.data)
+
+
+
+
+class MonthlyDonationGraphView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        now = datetime.datetime.now()
+        current_month = now.month
+        current_year = now.year
+
+        # Filter donations for current month
+        donations = (
+            Donation.objects.filter(
+                payment_status='completed',
+                donated_at__year=current_year,
+                donated_at__month=current_month
+            )
+            .annotate(week=TruncWeek('donated_at'))
+            .values('week')
+            .annotate(total_amount=Sum('amount'))
+            .order_by('week')
+        )
+
+        # Map: { week_start_date: total_amount }
+        donation_data = {
+            d['week'].isocalendar()[1]: float(d['total_amount']) for d in donations
+        }
+
+        # Build list of 4 weeks (assumption: max 4 weeks in month)
+        data = []
+        first_day = datetime.date(current_year, current_month, 1)
+        for i in range(4):
+            week_start = first_day + datetime.timedelta(days=i * 7)
+            week_number = week_start.isocalendar()[1]
+            data.append({
+                "week": f"Week {i + 1}",
+                "total_amount": donation_data.get(week_number, 0.0)
+            })
+
+        return Response(data)
+
+
+class YearlyDonationGraphView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        current_year = datetime.datetime.now().year
+
+        # Get monthly donation totals for current year
+        donations = (
+            Donation.objects.filter(
+                payment_status='completed',
+                donated_at__year=current_year
+            )
+            .annotate(month=TruncMonth('donated_at'))
+            .values('month')
+            .annotate(total_amount=Sum('amount'))
+            .order_by('month')
+        )
+
+        donation_data = {d['month'].month: float(d['total_amount']) for d in donations}
+
+        # Build 12-month list
+        months = []
+        for month in range(1, 13):
+            month_name = datetime.date(1900, month, 1).strftime('%B')
+            months.append({
+                "month": month_name,
+                "total_amount": donation_data.get(month, 0.0)
+            })
+
+        return Response(months)

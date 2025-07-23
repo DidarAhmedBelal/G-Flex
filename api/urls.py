@@ -21,7 +21,7 @@ from subscription.views import (
 from donation.views import (
     DonationViewSet, DonationCampaignViewSet,
     CreateDonationCheckoutSessionView, StripeWebhookView,
-    UserDonationSummaryView, AdminDonationSummaryView, PublicDonationSummaryView
+    UserDonationSummaryView, AdminDonationSummaryView, PublicDonationSummaryView, YearlyDonationGraphView, MonthlyDonationGraphView, FundCollectionView, RateDonationView
 )
 
 # Terms
@@ -73,6 +73,9 @@ urlpatterns = [
 
     # --- Subscriptions ---
     path('subscriptions/subscribed-users/', SubscribedUsersView.as_view(), name='subscribed-users'),
+    # path('subscriptions/create-checkout-session/', CreateSubscriptionCheckoutSessionView.as_view(), name='create-subscription-session'),
+    # POST /plans/{plan_id}/create_checkout_session/
+
     path('subscriptions/webhook/stripe/', subscription_stripe_webhook, name='subscription-stripe-webhook'),
 
     # --- Donations ---
@@ -89,8 +92,16 @@ urlpatterns = [
     path('terms/', TermsConditionView.as_view(), name='terms-condition'),
     path('privacy/', PrivacyPolicyView.as_view(), name='privacy-policy'),
 
+    path('donations/graph/monthly/', MonthlyDonationGraphView.as_view(), name='monthly-donation-graph'),
+    path('donations/graph/yearly/', YearlyDonationGraphView.as_view(), name='yearly-donation-graph'),
+    path('donations/fund-collection/', FundCollectionView.as_view(), name='fund-collection'),
+
+
     # --- Chat test endpoint ---
     path("test-socket/", websocket_test_view, name="websocket-test"),
+
+    path('donations/rate/', RateDonationView.as_view(), name='rate-donation'),
+
 
     # --- All registered ViewSets ---
     path('', include(router.urls)),
