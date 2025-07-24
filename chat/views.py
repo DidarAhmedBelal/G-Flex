@@ -22,6 +22,8 @@ from .chat import (
 import os
 import pickle
 
+from users.models import User
+
 # === Base directory of your project (where manage.py is) ===
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -95,7 +97,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
         # Gather previous messages (user and AI) for conversation history
         previous_msgs = list(conv.messages.order_by('created_at').values_list('role', 'content'))
         prev_queries = [f"{role.capitalize()}: {content}" for role, content in previous_msgs]
-        ai_reply = generate_response(user_msg, chunks, embeddings, prev_queries, conv.mode)
+        # Get user's name for greeting
+        name = request.user.first_name or request.user.email or "User"
+        ai_reply = generate_response(user_msg, chunks, embeddings, prev_queries, conv.mode, name=name)
 
         Message.objects.create(conversation=conv, role='ai', content=ai_reply)
 

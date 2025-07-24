@@ -6,7 +6,7 @@ from django.urls import path, include
 from users.views import (
     UserList, NewUsersView, ActiveUsersView, LoginView, SignupView, MyProfileView,
     ChangePasswordView, SetNewPasswordView, SendVerificationOTPView, VerifyAccountOTPView,
-    SendPasswordResetOTPView, VerifyPasswordResetOTPView, FriendBirthdayViewSet, WishMessageViewSet
+    SendPasswordResetOTPView, VerifyPasswordResetOTPView, FriendBirthdayViewSet, WishMessageViewSet, CountryViewSet
 )
 
 # Dashboard
@@ -45,6 +45,7 @@ router.register('conversations', ConversationViewSet, basename='conversation')
 router.register('friends', FriendBirthdayViewSet, basename='friends')
 router.register('wishes', WishMessageViewSet, basename='wishes')
 router.register('admin/policies', AdminTermsViewSet, basename='admin-policies')
+router.register('countries', CountryViewSet, basename='country')
 
 
 # ---------------------------
@@ -104,7 +105,10 @@ urlpatterns = [
     # --- Unified Stripe Webhook ---
     path('webhooks/stripe/', UnifiedStripeWebhookView.as_view(), name='stripe-webhook'),
 
+
     # --- All registered ViewSets ---
     path('', include(router.urls)),
+    # --- Country endpoints ---
+    
 ]
     

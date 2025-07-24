@@ -51,6 +51,7 @@ class User(AbstractUser):
     reset_password = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
     is_subscribed = models.BooleanField(default=False)
+    
 
     date_of_birth = models.DateField(blank=True, null=True)
 
@@ -86,3 +87,12 @@ class WishMessage(models.Model):
 
     def __str__(self):
         return self.message[:50] + '...'
+
+
+
+class Country(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='countries')
+    country = models.CharField(max_length=100, blank=True, null=True, default="")
+
+    def __str__(self):
+        return f"{self.user.email} - {self.country}" if self.user else self.country

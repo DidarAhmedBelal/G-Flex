@@ -1,3 +1,9 @@
+from .models import Country
+from .serializers import CountrySerializer
+
+# Country selection endpoints
+from rest_framework import mixins
+
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
@@ -66,6 +72,17 @@ class ActiveUsersView(ListAPIView):
             'results': serializer.data
         })
 
+
+
+class CountryViewSet(viewsets.ModelViewSet):
+    serializer_class = CountrySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Country.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 class SignupView(CreateAPIView):
     queryset = User.objects.all()

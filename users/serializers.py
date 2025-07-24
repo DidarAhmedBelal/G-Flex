@@ -1,11 +1,14 @@
+from .models import Country
+
+
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from users.models import User, FriendBirthday, WishMessage
 
-from subscription.models import UserSubscription  # Adjust path if needed
-from subscription.serializers import UserSubscriptionSerializer  # We'll define this next
+from subscription.models import UserSubscription  
+from subscription.serializers import UserSubscriptionSerializer  
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8, required=True)
@@ -38,6 +41,13 @@ class UserSerializer(serializers.ModelSerializer):
         }
         ref_name = 'CustomUserSerializer'
 
+
+
+class CountrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Country
+        fields = ['id', 'user', 'country']
+        read_only_fields = ['id', 'user']
 
 
 class LoginSerializer(serializers.Serializer):
