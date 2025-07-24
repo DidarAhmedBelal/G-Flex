@@ -44,7 +44,7 @@ from .serializers import (
     SetNewPasswordSerializer,
     MessageResponseSerializer
 )
-
+from rest_framework.validators import ValidationError
 User = get_user_model()
 
 class UserList(viewsets.ModelViewSet):
@@ -82,7 +82,13 @@ class CountryViewSet(viewsets.ModelViewSet):
         return Country.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        user = self.request.user
+
+        if Country.objects.filter(user=user).exists():
+            raise ValidationError("You have already added a country.")
+
+        serializer.save(user=user)
+
 
 class SignupView(CreateAPIView):
     queryset = User.objects.all()
